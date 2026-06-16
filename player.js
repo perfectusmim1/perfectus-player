@@ -1061,6 +1061,37 @@ document.addEventListener('DOMContentLoaded', () => {
     //  CUSTOM DROPDOWN SYSTEM
     // ══════════════════════════════════════════════════════════════════════
 
+    function positionDropdownList(trigger, list) {
+        const rect = trigger.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceAbove = rect.top;
+        const listHeight = Math.min(240, list.scrollHeight);
+
+        list.style.width = rect.width + 'px';
+        list.style.left = rect.left + 'px';
+
+        if (spaceBelow >= listHeight + 8 || spaceBelow >= spaceAbove) {
+            // Open downward
+            list.style.top = (rect.bottom + 4) + 'px';
+            list.style.bottom = 'auto';
+            list.style.maxHeight = Math.min(240, spaceBelow - 8) + 'px';
+        } else {
+            // Open upward
+            list.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
+            list.style.top = 'auto';
+            list.style.maxHeight = Math.min(240, spaceAbove - 8) + 'px';
+        }
+    }
+
+    function closeAllDropdowns(except) {
+        document.querySelectorAll('.custom-dropdown').forEach(d => {
+            if (d !== except) {
+                d.querySelector('.custom-dropdown-trigger').classList.remove('open');
+                d.querySelector('.custom-dropdown-list').classList.remove('open');
+            }
+        });
+    }
+
     function initCustomDropdowns() {
         document.querySelectorAll('.custom-dropdown').forEach(dropdown => {
             const trigger = dropdown.querySelector('.custom-dropdown-trigger');
@@ -1072,15 +1103,15 @@ document.addEventListener('DOMContentLoaded', () => {
             // Open/close
             trigger.addEventListener('click', (e) => {
                 e.stopPropagation();
-                // Close all other dropdowns
-                document.querySelectorAll('.custom-dropdown').forEach(d => {
-                    if (d !== dropdown) {
-                        d.querySelector('.custom-dropdown-trigger').classList.remove('open');
-                        d.querySelector('.custom-dropdown-list').classList.remove('open');
-                    }
-                });
+                closeAllDropdowns(dropdown);
+
+                const isOpening = !trigger.classList.contains('open');
                 trigger.classList.toggle('open');
                 list.classList.toggle('open');
+
+                if (isOpening) {
+                    positionDropdownList(trigger, list);
+                }
             });
 
             // Item selection
@@ -1113,6 +1144,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 t.classList.remove('open');
                 t.closest('.custom-dropdown').querySelector('.custom-dropdown-list').classList.remove('open');
             });
+        });
+
+        // Reposition on scroll/resize
+        const reposition = () => {
+            document.querySelectorAll('.custom-dropdown-trigger.open').forEach(t => {
+                const dd = t.closest('.custom-dropdown');
+                const list = dd.querySelector('.custom-dropdown-list');
+                positionDropdownList(t, list);
+            });
+        };
+        window.addEventListener('resize', reposition);
+        document.querySelectorAll('.modal-body').forEach(mb => {
+            mb.addEventListener('scroll', reposition);
         });
     }
 

@@ -38,6 +38,30 @@
     -moz-osx-font-smoothing: grayscale;
 }
 
+/* Global Dark Scrollbar */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.12);
+    border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.22);
+}
+
 body {
     background-color: var(--bg-app);
     color: var(--text-primary);
@@ -612,6 +636,8 @@ body {
     transform: translateY(12px) scale(0.95);
     transition: var(--transition-smooth);
     z-index: 15;
+    max-height: 60vh;
+    overflow-y: auto;
 }
 
 .settings-menu.visible {
@@ -657,7 +683,7 @@ body {
     text-transform: uppercase; letter-spacing: 0.5px;
 }
 
-.menu-options { display: flex; flex-direction: column; }
+.menu-options { display: flex; flex-direction: column; max-height: 45vh; overflow-y: auto; }
 
 .menu-item {
     background: none; border: none;
@@ -1219,10 +1245,7 @@ body {
 }
 
 .custom-dropdown-list {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
+    position: fixed;
     max-height: 240px;
     overflow-y: auto;
     background: rgba(12, 15, 26, 0.97);
@@ -1230,7 +1253,7 @@ body {
     border: 1px solid var(--border-glass);
     border-radius: 8px;
     padding: 4px;
-    z-index: 100;
+    z-index: 9999;
     opacity: 0;
     transform: translateY(-8px);
     pointer-events: none;
