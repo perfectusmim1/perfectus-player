@@ -310,8 +310,12 @@
         // Background
         if (cfg.bgEnabled) {
             element.style.backgroundColor = hexToRgba(cfg.bgColor, cfg.bgOpacity);
+            element.style.padding = '6px 16px';
+            element.style.borderRadius = '6px';
         } else {
             element.style.backgroundColor = 'transparent';
+            element.style.padding = '0';
+            element.style.borderRadius = '0';
         }
 
         // Text shadow

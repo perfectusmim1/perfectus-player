@@ -188,6 +188,8 @@ body {
     font-size: 28px;
     color: #ffffff;
     text-shadow: 0 2px 4px rgba(0,0,0,0.9), 0 0 2px rgba(0,0,0,0.5);
+    padding: 6px 16px;
+    border-radius: 6px;
 }
 
 .subtitle-overlay:empty {
