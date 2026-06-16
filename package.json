@@ -1,0 +1,12 @@
+{
+  "name": "perfectusplayer",
+  "version": "1.0.0",
+  "description": "Minimalist Dark-Themed Web Media Player",
+  "main": "index.html",
+  "scripts": {
+    "dev": "serve ."
+  },
+  "dependencies": {
+    "serve": "^14.2.4"
+  }
+}

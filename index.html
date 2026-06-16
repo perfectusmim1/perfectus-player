@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfectus Player - Minimalist Media Player</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- FontAwesome for sleek icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- Main Header -->
+        <header class="app-header">
+            <div class="logo">
+                <i class="fa-solid fa-circle-play logo-icon"></i>
+                <span class="logo-text">PERFECTUS<span class="accent-text">PLAYER</span></span>
+            </div>
+            <div class="file-selector-btn" id="file-selector-trigger">
+                <i class="fa-solid fa-file-video"></i> Video Seç
+                <input type="file" id="local-file-input" accept="video/*" style="display: none;">
+            </div>
+        </header>
+
+        <!-- Player Workspace Container -->
+        <main class="player-wrapper">
+            <div class="player-container paused" id="player-container">
+                
+                <!-- Main Video Element -->
+                <video id="main-video" class="video-element" playsinline></video>
+                
+                <!-- Hidden Video Element for instant previews -->
+                <video id="preview-video" class="preview-video-element" muted playsinline style="display: none;"></video>
+
+                <!-- Keyboard HUD Overlay -->
+                <div class="hud-overlay" id="hud-overlay">
+                    <div class="hud-content">
+                        <i class="fa-solid fa-play" id="hud-icon"></i>
+                        <span id="hud-text"></span>
+                    </div>
+                </div>
+
+                <!-- Drag & Drop Placeholder overlay -->
+                <div class="drop-zone" id="drop-zone">
+                    <div class="drop-zone-content">
+                        <div class="pulse-ring">
+                            <i class="fa-solid fa-cloud-arrow-up drop-icon"></i>
+                        </div>
+                        <h3>Videoyu buraya sürükleyin</h3>
+                        <p>veya yerel bir video dosyası seçmek için buraya tıklayın</p>
+                        <span class="demo-link" id="load-demo-btn">Cinematic Demo Oynat</span>
+                    </div>
+                </div>
+
+                <!-- Gradient Top Bar (Info / Title) -->
+                <div class="player-top-bar">
+                    <div class="video-title" id="video-title">Yükleniyor...</div>
+                </div>
+
+                <!-- Gradient Bottom Controls Bar -->
+                <div class="player-controls-container">
+                    
+                    <!-- Progress Timeline Bar -->
+                    <div class="timeline-container" id="timeline-container">
+                        <!-- Progress Slider Background -->
+                        <div class="timeline">
+                            <div class="buffer-bar" id="buffer-bar"></div>
+                            <div class="progress-bar" id="progress-bar">
+                                <div class="progress-handle"></div>
+                            </div>
+                        </div>
+
+                        <!-- Hover Tooltip Frame -->
+                        <div class="preview-tooltip" id="preview-tooltip">
+                            <div class="canvas-wrapper">
+                                <canvas id="preview-canvas" width="160" height="90"></canvas>
+                                <div class="canvas-spinner" id="canvas-spinner">
+                                    <i class="fa-solid fa-circle-notch fa-spin"></i>
+                                </div>
+                            </div>
+                            <span class="preview-time" id="preview-time">00:00</span>
+                        </div>
+                    </div>
+
+                    <!-- Controls Row -->
+                    <div class="controls-row">
+                        <div class="controls-left">
+                            <!-- Play / Pause -->
+                            <button class="control-btn play-pause-btn" id="play-pause-btn" title="Oynat / Durdur (Space)">
+                                <i class="fa-solid fa-play play-icon"></i>
+                                <i class="fa-solid fa-pause pause-icon"></i>
+                            </button>
+
+                            <!-- Backward 10s -->
+                            <button class="control-btn" id="backward-btn" title="10 Saniye Geri (Sol Ok)">
+                                <i class="fa-solid fa-backward"></i>
+                            </button>
+
+                            <!-- Forward 10s -->
+                            <button class="control-btn" id="forward-btn" title="10 Saniye İleri (Sağ Ok)">
+                                <i class="fa-solid fa-forward"></i>
+                            </button>
+
+                            <!-- Volume Control Group -->
+                            <div class="volume-container" id="volume-container">
+                                <button class="control-btn volume-btn" id="mute-btn" title="Sesi Kapat / Aç (M)">
+                                    <i class="fa-solid fa-volume-high volume-high-icon"></i>
+                                    <i class="fa-solid fa-volume-low volume-low-icon"></i>
+                                    <i class="fa-solid fa-volume-xmark volume-mute-icon"></i>
+                                </button>
+                                <div class="volume-slider-wrapper">
+                                    <input type="range" class="volume-slider" id="volume-slider" min="0" max="1" step="0.05" value="1">
+                                </div>
+                            </div>
+
+                            <!-- Time Counter Display -->
+                            <div class="time-display">
+                                <span class="current-time" id="current-time">00:00</span>
+                                <span class="time-divider">/</span>
+                                <span class="total-duration" id="total-duration">00:00</span>
+                            </div>
+                        </div>
+
+                        <div class="controls-right">
+                            <!-- Playback Speed Menu Button -->
+                            <div class="menu-container" id="speed-menu-container">
+                                <button class="control-btn" id="speed-menu-btn" title="Oynatma Hızı">
+                                    <i class="fa-solid fa-gauge-high"></i>
+                                    <span class="menu-active-value" id="current-speed-label">1.0x</span>
+                                </button>
+                                <div class="settings-menu" id="speed-menu">
+                                    <div class="menu-header">Oynatma Hızı</div>
+                                    <div class="menu-options">
+                                        <button class="menu-item" data-speed="0.25">0.25x</button>
+                                        <button class="menu-item" data-speed="0.5">0.5x</button>
+                                        <button class="menu-item" data-speed="0.75">0.75x</button>
+                                        <button class="menu-item active" data-speed="1">Normal (1x)</button>
+                                        <button class="menu-item" data-speed="1.25">1.25x</button>
+                                        <button class="menu-item" data-speed="1.5">1.5x</button>
+                                        <button class="menu-item" data-speed="2">2x</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Quality Menu Button -->
+                            <div class="menu-container" id="quality-menu-container">
+                                <button class="control-btn" id="quality-menu-btn" title="Kalite Seçimi">
+                                    <i class="fa-solid fa-sliders"></i>
+                                    <span class="menu-active-value" id="current-quality-label">Orijinal</span>
+                                </button>
+                                <div class="settings-menu" id="quality-menu">
+                                    <div class="menu-header">Kalite</div>
+                                    <div class="menu-options" id="quality-options">
+                                        <button class="menu-item active" data-quality="original">Orijinal</button>
+                                        <button class="menu-item" data-quality="1080">1080p (FHD)</button>
+                                        <button class="menu-item" data-quality="720">720p (HD)</button>
+                                        <button class="menu-item" data-quality="480">480p (SD)</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Full Screen -->
+                            <button class="control-btn" id="fullscreen-btn" title="Tam Ekran (F / Çift Tık)">
+                                <i class="fa-solid fa-expand expand-icon"></i>
+                                <i class="fa-solid fa-compress compress-icon"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </main>
+
+        <!-- Technical Features Footer -->
+        <footer class="app-footer">
+            <div class="shortcuts-guide">
+                <span class="guide-title"><i class="fa-solid fa-keyboard"></i> Kısayollar:</span>
+                <span class="key-badge">Space</span> Oynat/Durdur | 
+                <span class="key-badge"><i class="fa-solid fa-arrow-left"></i></span> / <span class="key-badge"><i class="fa-solid fa-arrow-right"></i></span> 5sn Geri/İleri | 
+                <span class="key-badge"><i class="fa-solid fa-arrow-up"></i></span> / <span class="key-badge"><i class="fa-solid fa-arrow-down"></i></span> Ses Ayarı | 
+                <span class="key-badge">M</span> Sessiz | 
+                <span class="key-badge">F</span> Tam Ekran | 
+                <span class="key-badge">&lt;</span> / <span class="key-badge">&gt;</span> Hız Ayarı
+            </div>
+        </footer>
+    </div>
+
+    <script src="player.js"></script>
+</body>
+</html>
