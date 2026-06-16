@@ -368,12 +368,13 @@
             if (available >= length) {
                 return true;
             }
-            if (this.offset >= this.fileSize) {
+            const currentBufferEnd = this.bufferOffset + this.buffer.length;
+            if (currentBufferEnd >= this.fileSize) {
                 return false;
             }
-            // Read in 2MB chunks for fast extraction
-            const readLength = Math.max(2 * 1024 * 1024, length);
-            const start = this.offset;
+            const neededMore = length - available;
+            const readLength = Math.max(2 * 1024 * 1024, neededMore);
+            const start = currentBufferEnd;
             const end = Math.min(this.fileSize, start + readLength);
             if (start === end) return false;
 
