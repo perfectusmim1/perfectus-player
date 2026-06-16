@@ -1065,18 +1065,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const rect = trigger.getBoundingClientRect();
         const spaceBelow = window.innerHeight - rect.bottom;
         const spaceAbove = rect.top;
-        const listHeight = Math.min(240, list.scrollHeight);
 
         list.style.width = rect.width + 'px';
         list.style.left = rect.left + 'px';
 
+        // Temporarily make visible to measure scrollHeight
+        const wasHidden = !list.classList.contains('open');
+        if (wasHidden) {
+            list.style.opacity = '0';
+            list.style.display = 'block';
+            list.style.pointerEvents = 'none';
+        }
+        const listHeight = Math.min(240, list.scrollHeight || 200);
+        if (wasHidden) {
+            list.style.opacity = '';
+            list.style.display = '';
+            list.style.pointerEvents = '';
+        }
+
         if (spaceBelow >= listHeight + 8 || spaceBelow >= spaceAbove) {
-            // Open downward
             list.style.top = (rect.bottom + 4) + 'px';
             list.style.bottom = 'auto';
             list.style.maxHeight = Math.min(240, spaceBelow - 8) + 'px';
         } else {
-            // Open upward
             list.style.bottom = (window.innerHeight - rect.top + 4) + 'px';
             list.style.top = 'auto';
             list.style.maxHeight = Math.min(240, spaceAbove - 8) + 'px';
@@ -1086,8 +1097,19 @@ document.addEventListener('DOMContentLoaded', () => {
     function closeAllDropdowns(except) {
         document.querySelectorAll('.custom-dropdown').forEach(d => {
             if (d !== except) {
-                d.querySelector('.custom-dropdown-trigger').classList.remove('open');
-                d.querySelector('.custom-dropdown-list').classList.remove('open');
+                const t = d.querySelector('.custom-dropdown-trigger');
+                if (t.classList.contains('open')) {
+                    t.classList.remove('open');
+                    // Return portaled list back to its dropdown
+                    const list = d._portaledList || d.querySelector('.custom-dropdown-list');
+                    if (list) {
+                        list.classList.remove('open');
+                        if (list.parentNode === document.body) {
+                            d.appendChild(list);
+                        }
+                    }
+                    d._portaledList = null;
+                }
             }
         });
     }
@@ -1100,17 +1122,26 @@ document.addEventListener('DOMContentLoaded', () => {
             const selectId = dropdown.dataset.for;
             const hiddenSelect = selectId ? document.getElementById(selectId) : null;
 
-            // Open/close
+            // Open/close with portal
             trigger.addEventListener('click', (e) => {
                 e.stopPropagation();
                 closeAllDropdowns(dropdown);
 
                 const isOpening = !trigger.classList.contains('open');
-                trigger.classList.toggle('open');
-                list.classList.toggle('open');
 
                 if (isOpening) {
+                    // Portal: move list to body so it escapes overflow/transform/backdrop-filter
+                    document.body.appendChild(list);
+                    dropdown._portaledList = list;
                     positionDropdownList(trigger, list);
+                    trigger.classList.add('open');
+                    list.classList.add('open');
+                } else {
+                    // Close: return list to dropdown
+                    trigger.classList.remove('open');
+                    list.classList.remove('open');
+                    dropdown.appendChild(list);
+                    dropdown._portaledList = null;
                 }
             });
 
@@ -1122,36 +1153,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 const value = item.dataset.value;
                 label.textContent = item.textContent;
 
-                // Update active state
                 list.querySelectorAll('.custom-dropdown-item').forEach(i => i.classList.remove('active'));
                 item.classList.add('active');
 
-                // Sync hidden select
                 if (hiddenSelect) {
                     hiddenSelect.value = value;
                     hiddenSelect.dispatchEvent(new Event('change', { bubbles: true }));
                 }
 
-                // Close dropdown
                 trigger.classList.remove('open');
                 list.classList.remove('open');
+                dropdown.appendChild(list);
+                dropdown._portaledList = null;
             });
         });
 
         // Global close on outside click
         document.addEventListener('click', () => {
-            document.querySelectorAll('.custom-dropdown-trigger.open').forEach(t => {
-                t.classList.remove('open');
-                t.closest('.custom-dropdown').querySelector('.custom-dropdown-list').classList.remove('open');
+            document.querySelectorAll('.custom-dropdown').forEach(d => {
+                const t = d.querySelector('.custom-dropdown-trigger');
+                if (t && t.classList.contains('open')) {
+                    t.classList.remove('open');
+                    const list = d._portaledList || d.querySelector('.custom-dropdown-list');
+                    if (list) {
+                        list.classList.remove('open');
+                        if (list.parentNode === document.body) {
+                            d.appendChild(list);
+                        }
+                    }
+                    d._portaledList = null;
+                }
             });
         });
 
         // Reposition on scroll/resize
         const reposition = () => {
-            document.querySelectorAll('.custom-dropdown-trigger.open').forEach(t => {
-                const dd = t.closest('.custom-dropdown');
-                const list = dd.querySelector('.custom-dropdown-list');
-                positionDropdownList(t, list);
+            document.querySelectorAll('.custom-dropdown').forEach(d => {
+                const t = d.querySelector('.custom-dropdown-trigger');
+                if (t && t.classList.contains('open') && d._portaledList) {
+                    positionDropdownList(t, d._portaledList);
+                }
             });
         };
         window.addEventListener('resize', reposition);
