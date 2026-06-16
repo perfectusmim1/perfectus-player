@@ -13,7 +13,7 @@
     // ── Constants ────────────────────────────────────────────────────────
 
     /** Number of cues to send per API request */
-    const BATCH_SIZE = 20;
+    const BATCH_SIZE = 400;
 
     /** Default Gemini model */
     const DEFAULT_MODEL = 'gemini-3.5-flash';
@@ -93,43 +93,14 @@
      * @returns {string} Formatted prompt string
      */
     function buildPrompt(batch, targetLang) {
-        const lines = batch
-            .map((cue, index) => `${index + 1}: ${cue.text}`)
-            .join('\n');
-
+        const texts = batch.map(cue => cue.text);
         return (
-            `Aşağıdaki altyazı satırlarını ${targetLang} diline çevir. ` +
-            `Her satırı ayrı ayrı çevir ve sadece çevirileri satır satır döndür. ` +
-            `Satır numarası veya zaman kodu EKLEME. Orijinal satır sayısını koru.\n\n` +
-            lines
+            `Aşağıdaki altyazı metinleri dizisini ${targetLang} diline çevir. ` +
+            `Orijinal sırayı ve dizi uzunluğunu kesinlikle koru. ` +
+            `Hiçbir satırı atlama, birleştirme veya bölme. ` +
+            `Çeviriyi şu JSON formatında dizi olarak döndür: ["çeviri1", "çeviri2", ...]\n\n` +
+            JSON.stringify(texts)
         );
-    }
-
-    /**
-     * Parses the Gemini response text into an array of translated strings.
-     * Handles numbered prefixes (e.g. "1: translated text") and blank lines.
-     * @param {string} responseText - Raw text from the API
-     * @param {number} expectedCount - Number of lines we expect
-     * @returns {string[]} Array of translated strings
-     */
-    function parseResponseLines(responseText, expectedCount) {
-        // Split by newlines and filter out empty lines
-        const rawLines = responseText.split('\n').filter(line => line.trim() !== '');
-
-        // Strip numbered prefixes like "1: ", "2: ", "10: " etc.
-        const cleaned = rawLines.map(line => {
-            return line.replace(/^\d+\s*[:\.]\s*/, '').trim();
-        });
-
-        // Warn if line count doesn't match
-        if (cleaned.length !== expectedCount) {
-            console.warn(
-                `[PerfectusTranslate] Beklenen satır sayısı: ${expectedCount}, ` +
-                `alınan: ${cleaned.length}. Mevcut satırlar kullanılacak.`
-            );
-        }
-
-        return cleaned;
     }
 
     // ── Core Translation Logic ──────────────────────────────────────────
@@ -156,7 +127,8 @@
                 }
             ],
             generationConfig: {
-                temperature: 0.3
+                temperature: 0.3,
+                responseMimeType: "application/json"
             }
         };
 
@@ -186,16 +158,35 @@
 
         // Extract the generated text
         const generatedText =
-            data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            data?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
 
-        // Parse response lines and map back to cue objects
-        const translatedLines = parseResponseLines(generatedText, batch.length);
+        let cleanText = generatedText.trim();
+        if (cleanText.startsWith('```')) {
+            cleanText = cleanText.replace(/^```(?:json)?\n?/i, '');
+            cleanText = cleanText.replace(/\n?```$/i, '');
+            cleanText = cleanText.trim();
+        }
+
+        let translatedTexts = [];
+        try {
+            translatedTexts = JSON.parse(cleanText);
+        } catch (e) {
+            console.error('JSON parsing failed, falling back to regex. Text:', cleanText);
+            try {
+                const matches = cleanText.match(/"([^"\\]|\\.)*"/g);
+                if (matches) {
+                    translatedTexts = matches.map(s => JSON.parse(s));
+                }
+            } catch (err) {
+                console.error('Regex fallback failed:', err);
+            }
+        }
 
         return batch.map((cue, index) => ({
             id: cue.id,
             start: cue.start,
             end: cue.end,
-            text: index < translatedLines.length ? translatedLines[index] : cue.text,
+            text: (translatedTexts && index < translatedTexts.length) ? translatedTexts[index] : cue.text,
         }));
     }
 
