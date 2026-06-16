@@ -58,6 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const apiKeyToggle = document.getElementById('api-key-toggle');
     const modelSelect = document.getElementById('model-select');
     const apiStatus = document.getElementById('api-status');
+    const thinkingToggle = document.getElementById('thinking-toggle');
 
     // Translation
     const translateSourceSelect = document.getElementById('translate-source-select');
@@ -126,6 +127,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const savedModel = localStorage.getItem('perfectus_model');
         if (savedModel) modelSelect.value = savedModel;
 
+        // Thinking mode
+        const savedThinking = localStorage.getItem('perfectus_thinking');
+        if (savedThinking) thinkingToggle.checked = savedThinking === 'true';
+
         // Subtitle Style
         const savedStyle = localStorage.getItem('perfectus_sub_style');
         if (savedStyle) {
@@ -146,6 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveSettings() {
         localStorage.setItem('perfectus_api_key', apiKeyInput.value);
         localStorage.setItem('perfectus_model', modelSelect.value);
+        localStorage.setItem('perfectus_thinking', thinkingToggle.checked);
         localStorage.setItem('perfectus_sub_style', JSON.stringify(subtitleStyle));
     }
 
@@ -193,6 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     modelSelect.addEventListener('change', () => saveSettings());
+    thinkingToggle.addEventListener('change', () => saveSettings());
 
     function updateApiStatus() {
         const key = apiKeyInput.value.trim();
@@ -288,6 +295,8 @@ document.addEventListener('DOMContentLoaded', () => {
             opt.textContent = lang.name;
             translateTargetLang.appendChild(opt);
         });
+        // Sync custom dropdown
+        setTimeout(() => syncCustomDropdown('translate-target-lang'), 0);
     }
 
     function updateTranslateSourceList() {
@@ -300,6 +309,8 @@ document.addEventListener('DOMContentLoaded', () => {
             opt.textContent = 'Önce bir altyazı yükleyin...';
             translateSourceSelect.appendChild(opt);
             translateBtn.disabled = true;
+            // Sync custom dropdown
+            setTimeout(() => syncCustomDropdown('translate-source-select'), 0);
             return;
         }
 
@@ -311,6 +322,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         translateBtn.disabled = !apiKeyInput.value.trim();
+
+        // Sync custom dropdown
+        setTimeout(() => syncCustomDropdown('translate-source-select'), 0);
     }
 
     // Enable/disable translate button based on API key
@@ -325,6 +339,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetLang = translateTargetLang.value;
         const apiKey = apiKeyInput.value.trim();
         const model = modelSelect.value;
+        const thinking = thinkingToggle.checked;
 
         if (isNaN(sourceIndex) || !subtitleTracks[sourceIndex]) {
             showTranslateStatus('Lütfen bir kaynak altyazı seçin.', 'error');
@@ -352,7 +367,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     const pct = Math.round((completed / total) * 100);
                     translateProgressFill.style.width = pct + '%';
                     translateProgressText.textContent = `${completed} / ${total}`;
-                }
+                },
+                thinking
             );
 
             // Add as new track
@@ -1037,4 +1053,93 @@ document.addEventListener('DOMContentLoaded', () => {
             if (item) item.click();
         }
     }
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  CUSTOM DROPDOWN SYSTEM
+    // ══════════════════════════════════════════════════════════════════════
+
+    function initCustomDropdowns() {
+        document.querySelectorAll('.custom-dropdown').forEach(dropdown => {
+            const trigger = dropdown.querySelector('.custom-dropdown-trigger');
+            const list = dropdown.querySelector('.custom-dropdown-list');
+            const label = trigger.querySelector('.dropdown-label');
+            const selectId = dropdown.dataset.for;
+            const hiddenSelect = selectId ? document.getElementById(selectId) : null;
+
+            // Open/close
+            trigger.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // Close all other dropdowns
+                document.querySelectorAll('.custom-dropdown').forEach(d => {
+                    if (d !== dropdown) {
+                        d.querySelector('.custom-dropdown-trigger').classList.remove('open');
+                        d.querySelector('.custom-dropdown-list').classList.remove('open');
+                    }
+                });
+                trigger.classList.toggle('open');
+                list.classList.toggle('open');
+            });
+
+            // Item selection
+            list.addEventListener('click', (e) => {
+                const item = e.target.closest('.custom-dropdown-item');
+                if (!item || item.classList.contains('disabled')) return;
+
+                const value = item.dataset.value;
+                label.textContent = item.textContent;
+
+                // Update active state
+                list.querySelectorAll('.custom-dropdown-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+
+                // Sync hidden select
+                if (hiddenSelect) {
+                    hiddenSelect.value = value;
+                    hiddenSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+
+                // Close dropdown
+                trigger.classList.remove('open');
+                list.classList.remove('open');
+            });
+        });
+
+        // Global close on outside click
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.custom-dropdown-trigger.open').forEach(t => {
+                t.classList.remove('open');
+                t.closest('.custom-dropdown').querySelector('.custom-dropdown-list').classList.remove('open');
+            });
+        });
+    }
+
+    // Sync custom dropdown when hidden select changes programmatically
+    function syncCustomDropdown(selectId) {
+        const hiddenSelect = document.getElementById(selectId);
+        const dropdown = document.querySelector(`.custom-dropdown[data-for="${selectId}"]`);
+        if (!hiddenSelect || !dropdown) return;
+
+        const list = dropdown.querySelector('.custom-dropdown-list');
+        const label = dropdown.querySelector('.dropdown-label');
+
+        // Rebuild items from hidden select
+        list.innerHTML = '';
+        Array.from(hiddenSelect.options).forEach(opt => {
+            const item = document.createElement('button');
+            item.className = 'custom-dropdown-item';
+            item.dataset.value = opt.value;
+            item.textContent = opt.textContent;
+            if (opt.selected) item.classList.add('active');
+            if (opt.disabled) item.classList.add('disabled');
+            list.appendChild(item);
+        });
+
+        // Update label
+        const selectedOpt = hiddenSelect.options[hiddenSelect.selectedIndex];
+        if (selectedOpt) {
+            label.textContent = selectedOpt.textContent;
+        }
+    }
+
+    initCustomDropdowns();
 });

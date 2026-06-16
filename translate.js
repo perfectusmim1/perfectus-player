@@ -87,6 +87,26 @@
     }
 
     /**
+     * Returns a promise that resolves after the specified delay.
+     * @param {number} ms - Milliseconds to wait
+     * @returns {Promise<void>}
+     */
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    /**
+     * Returns the fallback model for the given current model.
+     * @param {string} currentModel - Currently active model name
+     * @returns {string} The alternate model to fall back to
+     */
+    function getFallbackModel(currentModel) {
+        return currentModel === 'gemini-3.5-flash'
+            ? 'gemini-3.1-flash-lite'
+            : 'gemini-3.5-flash';
+    }
+
+    /**
      * Builds the translation prompt for a batch of cues.
      * @param {Array<{id, start, end, text}>} batch - Subtitle cues
      * @param {string} targetLang - Target language name
@@ -111,9 +131,10 @@
      * @param {string} targetLang - Target language name
      * @param {string} apiKey - Gemini API key
      * @param {string} model - Gemini model name
+     * @param {boolean} [thinking=false] - Enable thinking mode with budget
      * @returns {Promise<Array<{id, start, end, text}>>} Translated cues
      */
-    async function translateBatch(batch, targetLang, apiKey, model) {
+    async function translateBatch(batch, targetLang, apiKey, model, thinking = false) {
         const endpoint = `${API_BASE}/${model}:generateContent?key=${apiKey}`;
         const prompt = buildPrompt(batch, targetLang);
 
@@ -128,7 +149,8 @@
             ],
             generationConfig: {
                 temperature: 0.3,
-                responseMimeType: "application/json"
+                responseMimeType: "application/json",
+                ...(thinking ? { thinkingConfig: { thinkingBudget: 8192 } } : {})
             }
         };
 
@@ -199,6 +221,7 @@
      * @param {string} apiKey - Gemini API key
      * @param {string} [model='gemini-3.5-flash'] - Gemini model name
      * @param {Function} [onProgress] - Callback `(completedCount, totalCount)`
+     * @param {boolean} [thinking=false] - Enable thinking mode with budget
      * @returns {Promise<Array<{id, start, end, text}>>} Translated cues
      * @throws {Error} If API key is missing, network fails, or API returns an error
      */
@@ -207,7 +230,8 @@
         targetLang,
         apiKey,
         model = DEFAULT_MODEL,
-        onProgress = null
+        onProgress = null,
+        thinking = false
     ) {
         // ── Validate API key ────────────────────────────────────────────
         if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
@@ -225,22 +249,62 @@
         const translatedCues = [];
         let completedCount = 0;
 
+        // ── Retry configuration ─────────────────────────────────────────
+        const MAX_RETRIES = 2;
+        const RETRY_DELAY_MS = 3000;
+        let activeModel = model;
+
         // ── Process each batch sequentially ─────────────────────────────
         for (const batch of batches) {
-            try {
-                const translated = await translateBatch(batch, targetLang, apiKey, model);
-                translatedCues.push(...translated);
-                completedCount += batch.length;
+            let translated = null;
+            let lastError = null;
 
-                // Notify progress
-                if (typeof onProgress === 'function') {
-                    onProgress(completedCount, totalCues);
+            // ── Retry loop: up to MAX_RETRIES with the active model ─────
+            for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                try {
+                    translated = await translateBatch(batch, targetLang, apiKey, activeModel, thinking);
+                    break; // success — exit retry loop
+                } catch (error) {
+                    lastError = error;
+                    console.warn(
+                        `[PerfectusTranslate] Deneme ${attempt}/${MAX_RETRIES} başarısız (model: ${activeModel}): ${error.message}`
+                    );
+                    if (attempt < MAX_RETRIES) {
+                        await delay(RETRY_DELAY_MS);
+                    }
                 }
-            } catch (error) {
-                // If any batch fails, throw immediately
-                throw new Error(
-                    `Çeviri hatası (${completedCount}/${totalCues} tamamlandı): ${error.message}`
+            }
+
+            // ── Fallback: try the alternate model once ──────────────────
+            if (!translated) {
+                const fallbackModel = getFallbackModel(activeModel);
+                console.warn(
+                    `[PerfectusTranslate] Yedek modele geçiliyor: ${fallbackModel}`
                 );
+                await delay(RETRY_DELAY_MS);
+
+                try {
+                    translated = await translateBatch(batch, targetLang, apiKey, fallbackModel, thinking);
+                    // Fallback succeeded — use it for remaining batches
+                    activeModel = fallbackModel;
+                    console.warn(
+                        `[PerfectusTranslate] Yedek model başarılı. Kalan gruplar için ${fallbackModel} kullanılacak.`
+                    );
+                } catch (fallbackError) {
+                    throw new Error(
+                        `Çeviri hatası (${completedCount}/${totalCues} tamamlandı): ` +
+                        `Ana model (${model}) ve yedek model (${fallbackModel}) başarısız oldu. ` +
+                        `Son hata: ${fallbackError.message}`
+                    );
+                }
+            }
+
+            translatedCues.push(...translated);
+            completedCount += batch.length;
+
+            // Notify progress
+            if (typeof onProgress === 'function') {
+                onProgress(completedCount, totalCues);
             }
         }
 

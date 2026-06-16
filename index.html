@@ -266,10 +266,34 @@
 
                     <div class="form-group">
                         <label class="form-label">Model</label>
-                        <select class="form-select" id="model-select">
+                        <select class="form-select" id="model-select" style="display:none">
                             <option value="gemini-3.5-flash" selected>Gemini 3.5 Flash</option>
                             <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</option>
                         </select>
+                        <div class="custom-dropdown" data-for="model-select">
+                            <div class="custom-dropdown-trigger" tabindex="0">
+                                <span class="dropdown-label">Gemini 3.5 Flash</span>
+                                <i class="fa-solid fa-chevron-down dropdown-arrow"></i>
+                            </div>
+                            <div class="custom-dropdown-list">
+                                <button class="custom-dropdown-item active" data-value="gemini-3.5-flash">Gemini 3.5 Flash</button>
+                                <button class="custom-dropdown-item" data-value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="toggle-row">
+                            <label class="form-label">Düşünme Modu</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="thinking-toggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <span class="form-hint">
+                            <i class="fa-solid fa-brain"></i>
+                            Model yanıt vermeden önce düşünme süreci kullanır (daha yavaş ama daha kaliteli çeviri).
+                        </span>
                     </div>
 
                     <div class="api-status" id="api-status">
@@ -282,16 +306,34 @@
                 <div class="tab-content" id="tab-translate">
                     <div class="form-group">
                         <label class="form-label">Kaynak Altyazı</label>
-                        <select class="form-select" id="translate-source-select">
+                        <select class="form-select" id="translate-source-select" style="display:none">
                             <option value="" disabled selected>Önce bir altyazı yükleyin...</option>
                         </select>
+                        <div class="custom-dropdown" data-for="translate-source-select">
+                            <div class="custom-dropdown-trigger" tabindex="0">
+                                <span class="dropdown-label">Önce bir altyazı yükleyin...</span>
+                                <i class="fa-solid fa-chevron-down dropdown-arrow"></i>
+                            </div>
+                            <div class="custom-dropdown-list">
+                                <button class="custom-dropdown-item disabled active" data-value="">Önce bir altyazı yükleyin...</button>
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Hedef Dil</label>
-                        <select class="form-select" id="translate-target-lang">
+                        <select class="form-select" id="translate-target-lang" style="display:none">
                             <!-- Populated by translate.js getSupportedLanguages() -->
                         </select>
+                        <div class="custom-dropdown" data-for="translate-target-lang">
+                            <div class="custom-dropdown-trigger" tabindex="0">
+                                <span class="dropdown-label">Dil seçin...</span>
+                                <i class="fa-solid fa-chevron-down dropdown-arrow"></i>
+                            </div>
+                            <div class="custom-dropdown-list">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
                     </div>
 
                     <button class="translate-btn" id="translate-btn" disabled>
