@@ -248,6 +248,104 @@ body {
     transform: scale(1.02);
 }
 
+/* Resume Banner */
+.resume-banner {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    z-index: 25;
+    padding: 12px 16px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 80%, transparent 100%);
+    animation: resumeSlideIn 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+@keyframes resumeSlideIn {
+    from { opacity: 0; transform: translateY(-100%); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.resume-banner-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(12, 15, 26, 0.85);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--border-glass);
+    border-radius: 10px;
+    padding: 10px 16px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+.resume-icon {
+    font-size: 1.2rem;
+    color: var(--accent-blue);
+    flex-shrink: 0;
+}
+
+.resume-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+}
+
+.resume-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.resume-time {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+}
+
+.resume-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.resume-btn {
+    border: none;
+    border-radius: 6px;
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: var(--transition-fast);
+}
+
+.resume-btn-primary {
+    background: var(--accent-blue);
+    color: #fff;
+    padding: 7px 14px;
+}
+
+.resume-btn-primary:hover {
+    background: #0066dd;
+    box-shadow: var(--shadow-glow);
+}
+
+.resume-btn-secondary {
+    background: rgba(255,255,255,0.06);
+    color: var(--text-secondary);
+    padding: 7px 9px;
+}
+
+.resume-btn-secondary:hover {
+    background: rgba(255, 80, 80, 0.15);
+    color: #ff6b6b;
+}
+
 .drop-zone-content {
     display: flex;
     flex-direction: column;

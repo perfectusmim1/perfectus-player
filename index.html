@@ -53,6 +53,25 @@
                     </div>
                 </div>
 
+                <!-- Resume Banner -->
+                <div class="resume-banner" id="resume-banner" style="display: none;">
+                    <div class="resume-banner-content">
+                        <i class="fa-solid fa-rotate-left resume-icon"></i>
+                        <div class="resume-info">
+                            <span class="resume-title" id="resume-title">film.mkv</span>
+                            <span class="resume-time" id="resume-time">20:34'te kaldınız</span>
+                        </div>
+                        <div class="resume-actions">
+                            <button class="resume-btn resume-btn-primary" id="resume-continue-btn">
+                                <i class="fa-solid fa-play"></i> Devam Et
+                            </button>
+                            <button class="resume-btn resume-btn-secondary" id="resume-dismiss-btn">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Drag & Drop Placeholder overlay -->
                 <div class="drop-zone" id="drop-zone">
                     <div class="drop-zone-content">
@@ -146,6 +165,9 @@
                                         <button class="menu-item active" data-track="off">Kapalı</button>
                                     </div>
                                     <div class="cc-menu-footer">
+                                        <button class="cc-load-file-btn" id="cc-download-srt-btn" style="display: none;">
+                                            <i class="fa-solid fa-file-arrow-down"></i> Altyazıyı İndir (SRT)
+                                        </button>
                                         <button class="cc-load-file-btn" id="cc-load-file-btn">
                                             <i class="fa-solid fa-file-arrow-up"></i> SRT/VTT Dosyası Yükle
                                         </button>

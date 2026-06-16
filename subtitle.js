@@ -650,6 +650,41 @@
     }
 
     /* ──────────────────────────────────────────────
+     *  SRT Export
+     * ────────────────────────────────────────────── */
+
+    /**
+     * Converts a cues array back to SRT format string.
+     * @param {Array<{id, start, end, text}>} cues
+     * @returns {string} SRT formatted text
+     */
+    function exportToSRT(cues) {
+        if (!cues || cues.length === 0) return '';
+
+        return cues.map((cue, index) => {
+            const id = index + 1;
+            const startTime = formatSRTTime(cue.start);
+            const endTime = formatSRTTime(cue.end);
+            // Replace <br> tags back to newlines for SRT
+            const text = (cue.text || '').replace(/<br\s*\/?>/gi, '\n');
+            return `${id}\n${startTime} --> ${endTime}\n${text}`;
+        }).join('\n\n') + '\n';
+    }
+
+    /**
+     * Formats seconds to SRT timestamp: HH:MM:SS,mmm
+     * @param {number} seconds
+     * @returns {string}
+     */
+    function formatSRTTime(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        const ms = Math.round((seconds % 1) * 1000);
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+    }
+
+    /* ──────────────────────────────────────────────
      *  Public API
      * ────────────────────────────────────────────── */
 
@@ -660,5 +695,6 @@
         applyStyle:      applyStyle,
         getDefaultStyle: getDefaultStyle,
         parseMKV:        parseMKV,
+        exportToSRT:     exportToSRT,
     };
 })();

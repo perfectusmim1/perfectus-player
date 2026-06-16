@@ -44,7 +44,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const ccMenu = document.getElementById('cc-menu');
     const ccOptions = document.getElementById('cc-options');
     const ccLoadFileBtn = document.getElementById('cc-load-file-btn');
+    const ccDownloadSrtBtn = document.getElementById('cc-download-srt-btn');
     const subtitleFileInput = document.getElementById('subtitle-file-input');
+
+    // Resume Banner DOM
+    const resumeBanner = document.getElementById('resume-banner');
+    const resumeTitle = document.getElementById('resume-title');
+    const resumeTime = document.getElementById('resume-time');
+    const resumeContinueBtn = document.getElementById('resume-continue-btn');
+    const resumeDismissBtn = document.getElementById('resume-dismiss-btn');
 
     // Settings Modal DOM
     const settingsModalBackdrop = document.getElementById('settings-modal-backdrop');
@@ -101,6 +109,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeTrackIndex = -1;      // -1 = off
     let subtitleStyle = null;       // Current style config
     let lastRenderedCueText = '';   // Avoid redundant DOM writes
+    let currentFileName = '';       // Current loaded file name
+    let currentFileSize = 0;        // Current loaded file size
 
     const demoVideoUrl = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
     const demoVideoTitle = 'Big Buck Bunny (Cinematic Demo)';
@@ -411,6 +421,9 @@ document.addEventListener('DOMContentLoaded', () => {
         lastRenderedCueText = '';
         subtitleOverlay.innerHTML = '';
 
+        // Show/hide download button
+        ccDownloadSrtBtn.style.display = (index >= 0) ? '' : 'none';
+
         // Update CC menu active state
         const items = ccOptions.querySelectorAll('.menu-item');
         items.forEach(item => {
@@ -472,6 +485,31 @@ document.addEventListener('DOMContentLoaded', () => {
     ccLoadFileBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         subtitleFileInput.click();
+    });
+
+    // Download active subtitle as SRT
+    ccDownloadSrtBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (activeTrackIndex < 0 || !subtitleTracks[activeTrackIndex]) return;
+
+        const track = subtitleTracks[activeTrackIndex];
+        const srtText = window.PerfectusSubtitle.exportToSRT(track.cues);
+        const blob = new Blob([srtText], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+
+        const baseName = currentFileName ? currentFileName.replace(/\.[^.]+$/, '') : 'video';
+        const fileName = `${baseName} - ${track.name}.srt`;
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        showHUD('fa-file-arrow-down', 'SRT İndirildi');
+        ccMenu.classList.remove('visible');
     });
 
     subtitleFileInput.addEventListener('change', (e) => {
@@ -683,12 +721,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleVideoFile(file) {
         revokeLocalUrls();
+        currentFileName = file.name;
+        currentFileSize = file.size;
         const url1 = URL.createObjectURL(file);
         const url2 = URL.createObjectURL(file);
         activeMainUrl = url1;
         activePreviewUrl = url2;
         loadVideoSource(url1, url2, file.name);
         mainVideo.play().catch(err => console.log('Otomatik oynatılamadı:', err));
+
+        // Hide resume banner if visible
+        resumeBanner.style.display = 'none';
 
         // Parse embedded subtitles for MKV/WebM files
         const ext = file.name.split('.').pop().toLowerCase();
@@ -1230,4 +1273,170 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     initCustomDropdowns();
+
+    // ══════════════════════════════════════════════════════════════════════
+    //  PLAYBACK STATE PERSISTENCE (Resume)
+    // ══════════════════════════════════════════════════════════════════════
+
+    const STORAGE_KEY_PLAYBACK = 'perfectus_playback_state';
+
+    function formatTimeHHMM(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        return `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    function savePlaybackState() {
+        if (!currentFileName || !mainVideo.src || mainVideo.currentTime < 5) return;
+
+        const state = {
+            fileName: currentFileName,
+            fileSize: currentFileSize,
+            currentTime: mainVideo.currentTime,
+            volume: mainVideo.volume,
+            activeTrackIndex: activeTrackIndex,
+            subtitleTracks: subtitleTracks.map(t => ({
+                name: t.name,
+                lang: t.lang,
+                cues: t.cues,
+                type: t.type
+            })),
+            savedAt: Date.now()
+        };
+
+        try {
+            localStorage.setItem(STORAGE_KEY_PLAYBACK, JSON.stringify(state));
+        } catch (e) {
+            console.warn('[Resume] localStorage kayıt hatası:', e.message);
+        }
+    }
+
+    function loadPlaybackState() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY_PLAYBACK);
+            if (!raw) return null;
+            return JSON.parse(raw);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function clearPlaybackState() {
+        localStorage.removeItem(STORAGE_KEY_PLAYBACK);
+    }
+
+    function showResumeBanner() {
+        const state = loadPlaybackState();
+        if (!state || !state.fileName || state.currentTime < 5) return;
+
+        // Don't show if saved more than 30 days ago
+        if (Date.now() - state.savedAt > 30 * 24 * 60 * 60 * 1000) {
+            clearPlaybackState();
+            return;
+        }
+
+        resumeTitle.textContent = state.fileName;
+        resumeTime.textContent = `${formatTimeHHMM(state.currentTime)}'te kaldınız`;
+        resumeBanner.style.display = '';
+    }
+
+    function restorePlaybackState(file) {
+        const state = loadPlaybackState();
+        if (!state) return false;
+
+        // Verify file matches
+        if (file.name !== state.fileName || file.size !== state.fileSize) {
+            showHUD('fa-triangle-exclamation', 'Dosya eşleşmiyor');
+            return false;
+        }
+
+        // Load the video
+        handleVideoFile(file);
+
+        // Wait for video to be ready, then seek and restore
+        mainVideo.addEventListener('loadedmetadata', function onMeta() {
+            mainVideo.removeEventListener('loadedmetadata', onMeta);
+
+            // Seek to saved position
+            mainVideo.currentTime = state.currentTime;
+
+            // Restore volume
+            if (state.volume !== undefined) {
+                mainVideo.volume = state.volume;
+                currentVolume = state.volume;
+                volumeSlider.value = state.volume;
+            }
+
+            // Restore subtitle tracks
+            if (state.subtitleTracks && state.subtitleTracks.length > 0) {
+                // Wait a bit for embedded subs to parse, then add non-embedded ones
+                setTimeout(() => {
+                    state.subtitleTracks.forEach(savedTrack => {
+                        if (savedTrack.type !== 'embedded') {
+                            // Check if track already exists
+                            const exists = subtitleTracks.some(t => 
+                                t.name === savedTrack.name && t.type === savedTrack.type
+                            );
+                            if (!exists) {
+                                addSubtitleTrack(savedTrack.name, savedTrack.lang, savedTrack.cues, savedTrack.type);
+                            }
+                        }
+                    });
+
+                    // Restore active track
+                    if (state.activeTrackIndex >= 0 && state.activeTrackIndex < subtitleTracks.length) {
+                        setActiveTrack(state.activeTrackIndex);
+                    }
+                }, 1500);
+            }
+
+            showHUD('fa-rotate-left', 'Kaldığınız yerden devam');
+        });
+
+        return true;
+    }
+
+    // Resume banner button handlers
+    resumeContinueBtn.addEventListener('click', () => {
+        resumeBanner.style.display = 'none';
+        // Trigger file picker — user must select the same file
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'video/*';
+        input.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                restorePlaybackState(file);
+            }
+        });
+        input.click();
+    });
+
+    resumeDismissBtn.addEventListener('click', () => {
+        resumeBanner.style.display = 'none';
+        clearPlaybackState();
+    });
+
+    // Save state periodically (every 5 seconds during playback)
+    mainVideo.addEventListener('timeupdate', (() => {
+        let lastSave = 0;
+        return () => {
+            const now = Date.now();
+            if (now - lastSave > 5000) {
+                lastSave = now;
+                savePlaybackState();
+            }
+        };
+    })());
+
+    // Save on pause
+    mainVideo.addEventListener('pause', () => savePlaybackState());
+
+    // Save before page unload
+    window.addEventListener('beforeunload', () => savePlaybackState());
+
+    // Show resume banner on page load if there's saved state
+    showResumeBanner();
 });
