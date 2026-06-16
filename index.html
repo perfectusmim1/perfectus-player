@@ -21,9 +21,14 @@
                 <i class="fa-solid fa-circle-play logo-icon"></i>
                 <span class="logo-text">PERFECTUS<span class="accent-text">PLAYER</span></span>
             </div>
-            <div class="file-selector-btn" id="file-selector-trigger">
-                <i class="fa-solid fa-file-video"></i> Video Seç
-                <input type="file" id="local-file-input" accept="video/*" style="display: none;">
+            <div class="header-actions">
+                <div class="file-selector-btn" id="file-selector-trigger">
+                    <i class="fa-solid fa-file-video"></i> Video Seç
+                    <input type="file" id="local-file-input" accept="video/*" style="display: none;">
+                </div>
+                <button class="settings-trigger-btn" id="settings-trigger-btn" title="Ayarlar">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
             </div>
         </header>
 
@@ -36,6 +41,9 @@
                 
                 <!-- Hidden Video Element for instant previews -->
                 <video id="preview-video" class="preview-video-element" muted playsinline style="display: none;"></video>
+
+                <!-- Subtitle Overlay Layer -->
+                <div class="subtitle-overlay" id="subtitle-overlay"></div>
 
                 <!-- Keyboard HUD Overlay -->
                 <div class="hud-overlay" id="hud-overlay">
@@ -127,6 +135,27 @@
                         </div>
 
                         <div class="controls-right">
+                            <!-- Subtitle CC Button -->
+                            <div class="menu-container" id="cc-menu-container">
+                                <button class="control-btn" id="cc-menu-btn" title="Altyazı (C)">
+                                    <i class="fa-solid fa-closed-captioning"></i>
+                                </button>
+                                <div class="settings-menu cc-menu" id="cc-menu">
+                                    <div class="menu-header">Altyazı</div>
+                                    <div class="menu-options" id="cc-options">
+                                        <button class="menu-item active" data-track="off">Kapalı</button>
+                                    </div>
+                                    <div class="cc-menu-footer">
+                                        <button class="cc-load-file-btn" id="cc-load-file-btn">
+                                            <i class="fa-solid fa-file-arrow-up"></i> SRT/VTT Dosyası Yükle
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Hidden subtitle file input -->
+                            <input type="file" id="subtitle-file-input" accept=".srt,.vtt,.sub" style="display: none;">
+
                             <!-- Playback Speed Menu Button -->
                             <div class="menu-container" id="speed-menu-container">
                                 <button class="control-btn" id="speed-menu-btn" title="Oynatma Hızı">
@@ -186,11 +215,167 @@
                 <span class="key-badge"><i class="fa-solid fa-arrow-up"></i></span> / <span class="key-badge"><i class="fa-solid fa-arrow-down"></i></span> Ses Ayarı | 
                 <span class="key-badge">M</span> Sessiz | 
                 <span class="key-badge">F</span> Tam Ekran | 
+                <span class="key-badge">C</span> Altyazı | 
                 <span class="key-badge">&lt;</span> / <span class="key-badge">&gt;</span> Hız Ayarı
             </div>
         </footer>
     </div>
 
+    <!-- ======================================================================
+         SETTINGS MODAL
+         ====================================================================== -->
+    <div class="modal-backdrop" id="settings-modal-backdrop">
+        <div class="modal-container" id="settings-modal">
+            <div class="modal-header">
+                <h2 class="modal-title"><i class="fa-solid fa-gear"></i> Ayarlar</h2>
+                <button class="modal-close-btn" id="settings-modal-close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Tab Navigation -->
+            <div class="modal-tabs">
+                <button class="modal-tab active" data-tab="tab-api">
+                    <i class="fa-solid fa-key"></i> API Ayarları
+                </button>
+                <button class="modal-tab" data-tab="tab-translate">
+                    <i class="fa-solid fa-language"></i> Çeviri
+                </button>
+                <button class="modal-tab" data-tab="tab-style">
+                    <i class="fa-solid fa-palette"></i> Altyazı Stili
+                </button>
+            </div>
+
+            <div class="modal-body">
+
+                <!-- TAB 1: API Settings -->
+                <div class="tab-content active" id="tab-api">
+                    <div class="form-group">
+                        <label class="form-label">Gemini API Anahtarı</label>
+                        <div class="input-wrapper">
+                            <input type="password" class="form-input" id="api-key-input" placeholder="AIza...">
+                            <button class="input-toggle-btn" id="api-key-toggle" title="Göster/Gizle">
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                        <span class="form-hint">
+                            <i class="fa-solid fa-shield-halved"></i> 
+                            API anahtarınız yalnızca tarayıcınızda (localStorage) saklanır.
+                        </span>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Model</label>
+                        <select class="form-select" id="model-select">
+                            <option value="gemini-3.5-flash" selected>Gemini 3.5 Flash</option>
+                            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                        </select>
+                    </div>
+
+                    <div class="api-status" id="api-status">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span>API anahtarı girilmemiş</span>
+                    </div>
+                </div>
+
+                <!-- TAB 2: Translation -->
+                <div class="tab-content" id="tab-translate">
+                    <div class="form-group">
+                        <label class="form-label">Kaynak Altyazı</label>
+                        <select class="form-select" id="translate-source-select">
+                            <option value="" disabled selected>Önce bir altyazı yükleyin...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Hedef Dil</label>
+                        <select class="form-select" id="translate-target-lang">
+                            <!-- Populated by translate.js getSupportedLanguages() -->
+                        </select>
+                    </div>
+
+                    <button class="translate-btn" id="translate-btn" disabled>
+                        <i class="fa-solid fa-language"></i> Çeviriyi Başlat
+                    </button>
+
+                    <div class="translate-progress" id="translate-progress" style="display: none;">
+                        <div class="progress-track">
+                            <div class="progress-fill" id="translate-progress-fill"></div>
+                        </div>
+                        <span class="progress-text" id="translate-progress-text">0 / 0</span>
+                    </div>
+
+                    <div class="translate-status" id="translate-status" style="display: none;"></div>
+                </div>
+
+                <!-- TAB 3: Subtitle Style -->
+                <div class="tab-content" id="tab-style">
+                    <div class="style-grid">
+                        <div class="form-group">
+                            <label class="form-label">Font Boyutu: <span id="font-size-value">28px</span></label>
+                            <input type="range" class="style-slider" id="sub-font-size" min="14" max="48" value="28">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Font Rengi</label>
+                            <div class="color-picker-wrapper">
+                                <input type="color" class="color-picker" id="sub-font-color" value="#ffffff">
+                                <span class="color-value" id="sub-font-color-value">#FFFFFF</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <div class="toggle-row">
+                                <label class="form-label">Arka Plan Kutusu</label>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="sub-bg-enabled" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="bg-settings-group">
+                            <label class="form-label">Arka Plan Rengi</label>
+                            <div class="color-picker-wrapper">
+                                <input type="color" class="color-picker" id="sub-bg-color" value="#000000">
+                                <span class="color-value" id="sub-bg-color-value">#000000</span>
+                            </div>
+                        </div>
+
+                        <div class="form-group" id="bg-opacity-group">
+                            <label class="form-label">Arka Plan Opaklığı: <span id="bg-opacity-value">75%</span></label>
+                            <input type="range" class="style-slider" id="sub-bg-opacity" min="0" max="100" value="75">
+                        </div>
+
+                        <div class="form-group">
+                            <div class="toggle-row">
+                                <label class="form-label">Metin Gölgesi</label>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="sub-shadow-enabled" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Live Preview -->
+                    <div class="sub-preview-container">
+                        <label class="form-label">Canlı Önizleme</label>
+                        <div class="sub-preview-box" id="sub-preview-box">
+                            <div class="sub-preview-video-bg"></div>
+                            <span class="sub-preview-text" id="sub-preview-text">Bu bir altyazı önizlemesidir.</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="subtitle.js"></script>
+    <script src="translate.js"></script>
     <script src="player.js"></script>
 </body>
 </html>
