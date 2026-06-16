@@ -670,6 +670,38 @@ document.addEventListener('DOMContentLoaded', () => {
         activePreviewUrl = url2;
         loadVideoSource(url1, url2, file.name);
         mainVideo.play().catch(err => console.log('Otomatik oynatılamadı:', err));
+
+        // Parse embedded subtitles for MKV/WebM files
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (ext === 'mkv' || ext === 'webm') {
+            parseEmbeddedSubtitles(file);
+        }
+    }
+
+    async function parseEmbeddedSubtitles(file) {
+        try {
+            console.log('[PerfectusPlayer] Parsing embedded subtitles...');
+            const embeddedTracks = await window.PerfectusSubtitle.parseMKV(file);
+            console.log('[PerfectusPlayer] Found embedded tracks:', embeddedTracks);
+
+            if (embeddedTracks && embeddedTracks.length > 0) {
+                let addedAny = false;
+                embeddedTracks.forEach(track => {
+                    if (track.cues && track.cues.length > 0) {
+                        addSubtitleTrack(track.name, track.language, track.cues, 'embedded');
+                        addedAny = true;
+                    }
+                });
+
+                if (addedAny) {
+                    rebuildCCMenu();
+                    updateTranslateSourceList();
+                    showHUD('fa-closed-captioning', `${embeddedTracks.length} altyazı eklendi`);
+                }
+            }
+        } catch (err) {
+            console.error('[PerfectusPlayer] Error parsing embedded subtitles:', err);
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════

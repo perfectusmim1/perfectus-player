@@ -324,6 +324,327 @@
     }
 
     /* ──────────────────────────────────────────────
+     *  Matroska (MKV/WebM) Subtitle Parser
+     * ────────────────────────────────────────────── */
+
+    const EBML_TAGS = {
+        Segment: 0x18538067,
+        Tracks: 0x1654AE6B,
+        TrackEntry: 0xAE,
+        TrackNumber: 0xD7,
+        TrackType: 0x83,
+        Language: 0x22B59C,
+        Name: 0x536E,
+        CodecID: 0x86,
+        CodecPrivate: 0x63A2,
+        TimecodeScale: 0x2AD7B1,
+        Cluster: 0x1F43B675,
+        Timecode: 0xE7,
+        BlockGroup: 0xA0,
+        Block: 0xA1,
+        SimpleBlock: 0xA3,
+        BlockDuration: 0x9B
+    };
+
+    const CONTAINER_IDS = new Set([
+        EBML_TAGS.Segment,
+        EBML_TAGS.Tracks,
+        EBML_TAGS.TrackEntry,
+        EBML_TAGS.Cluster,
+        EBML_TAGS.BlockGroup
+    ]);
+
+    class FileBufferReader {
+        constructor(file) {
+            this.file = file;
+            this.fileSize = file.size;
+            this.offset = 0;
+            this.buffer = new Uint8Array(0);
+            this.bufferOffset = 0;
+        }
+
+        async ensureBytes(length) {
+            const available = this.buffer.length - (this.offset - this.bufferOffset);
+            if (available >= length) {
+                return true;
+            }
+            if (this.offset >= this.fileSize) {
+                return false;
+            }
+            // Read in 2MB chunks for fast extraction
+            const readLength = Math.max(2 * 1024 * 1024, length);
+            const start = this.offset;
+            const end = Math.min(this.fileSize, start + readLength);
+            if (start === end) return false;
+
+            const slice = this.file.slice(start, end);
+            const arrayBuffer = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsArrayBuffer(slice);
+            });
+            const newChunk = new Uint8Array(arrayBuffer);
+            const unreadOffset = this.offset - this.bufferOffset;
+            const unreadBytes = this.buffer.subarray(unreadOffset);
+            const merged = new Uint8Array(unreadBytes.length + newChunk.length);
+            merged.set(unreadBytes, 0);
+            merged.set(newChunk, unreadBytes.length);
+
+            this.buffer = merged;
+            this.bufferOffset = this.offset;
+            return this.buffer.length >= length;
+        }
+
+        getUint8Array(length) {
+            const start = this.offset - this.bufferOffset;
+            const sub = this.buffer.subarray(start, start + length);
+            this.offset += length;
+            return sub;
+        }
+
+        skip(length) {
+            this.offset += length;
+        }
+    }
+
+    function readVint(uint8Array, startOffset) {
+        if (startOffset >= uint8Array.length) return null;
+        const firstByte = uint8Array[startOffset];
+        if (firstByte === 0) return null;
+        const length = 8 - Math.floor(Math.log2(firstByte));
+        if (startOffset + length > uint8Array.length) return null;
+
+        let value = firstByte & ((1 << (8 - length)) - 1);
+        for (let i = 1; i < length; i++) {
+            value = (value * 256) + uint8Array[startOffset + i];
+        }
+
+        const maxVal = Math.pow(2, 7 * length) - 1;
+        if (value === maxVal) {
+            value = -1;
+        }
+        return { length, value };
+    }
+
+    function readId(uint8Array, startOffset) {
+        if (startOffset >= uint8Array.length) return null;
+        const firstByte = uint8Array[startOffset];
+        if (firstByte === 0) return null;
+        const length = 8 - Math.floor(Math.log2(firstByte));
+        if (startOffset + length > uint8Array.length) return null;
+
+        let id = 0;
+        for (let i = 0; i < length; i++) {
+            id = (id * 256) + uint8Array[startOffset + i];
+        }
+        return { length, value: id };
+    }
+
+    async function readUint(reader, size) {
+        const ok = await reader.ensureBytes(size);
+        if (!ok) {
+            reader.skip(size);
+            return 0;
+        }
+        const bytes = reader.getUint8Array(size);
+        let val = 0;
+        for (let i = 0; i < size; i++) {
+            val = (val * 256) + bytes[i];
+        }
+        return val;
+    }
+
+    async function readString(reader, size) {
+        const ok = await reader.ensureBytes(size);
+        if (!ok) {
+            reader.skip(size);
+            return '';
+        }
+        const bytes = reader.getUint8Array(size);
+        const textDecoder = new TextDecoder('utf-8');
+        return textDecoder.decode(bytes).trim();
+    }
+
+    async function readBytes(reader, size) {
+        const ok = await reader.ensureBytes(size);
+        if (!ok) {
+            reader.skip(size);
+            return null;
+        }
+        return reader.getUint8Array(size);
+    }
+
+    async function parseMKV(file) {
+        const reader = new FileBufferReader(file);
+        const tracks = new Map();
+        const cuesMap = new Map();
+
+        let currentTrack = null;
+        let clusterTimecode = 0;
+        let timecodeScale = 1.0;
+        let lastCue = null;
+
+        while (reader.offset < reader.fileSize) {
+            const ok = await reader.ensureBytes(12);
+            if (!ok) break;
+
+            const bufferIdx = reader.offset - reader.bufferOffset;
+
+            // Read ID
+            const idVint = readId(reader.buffer, bufferIdx);
+            if (!idVint) break;
+            const id = idVint.value;
+            reader.skip(idVint.length);
+
+            // Read Size
+            const sizeVint = readVint(reader.buffer, reader.offset - reader.bufferOffset);
+            if (!sizeVint) break;
+            const size = sizeVint.value;
+            reader.skip(sizeVint.length);
+
+            if (CONTAINER_IDS.has(id)) {
+                if (id === EBML_TAGS.TrackEntry) {
+                    if (currentTrack && currentTrack.number !== null && currentTrack.type === 0x11) {
+                        tracks.set(currentTrack.number, currentTrack);
+                        cuesMap.set(currentTrack.number, []);
+                    }
+                    currentTrack = {
+                        number: null,
+                        type: null,
+                        codecId: null,
+                        language: 'und',
+                        name: '',
+                        codecPrivate: null
+                    };
+                }
+                continue; // Descend
+            }
+
+            if (size === -1) {
+                continue;
+            }
+
+            if (id === EBML_TAGS.TrackNumber) {
+                const val = await readUint(reader, size);
+                if (currentTrack) currentTrack.number = val;
+            } else if (id === EBML_TAGS.TrackType) {
+                const val = await readUint(reader, size);
+                if (currentTrack) currentTrack.type = val;
+            } else if (id === EBML_TAGS.CodecID) {
+                const val = await readString(reader, size);
+                if (currentTrack) currentTrack.codecId = val;
+            } else if (id === EBML_TAGS.Language) {
+                const val = await readString(reader, size);
+                if (currentTrack) currentTrack.language = val;
+            } else if (id === EBML_TAGS.Name) {
+                const val = await readString(reader, size);
+                if (currentTrack) currentTrack.name = val;
+            } else if (id === EBML_TAGS.CodecPrivate) {
+                const val = await readBytes(reader, size);
+                if (currentTrack) currentTrack.codecPrivate = val;
+            } else if (id === EBML_TAGS.TimecodeScale) {
+                const scale = await readUint(reader, size);
+                timecodeScale = scale / 1000000.0;
+            } else if (id === EBML_TAGS.Timecode) {
+                clusterTimecode = await readUint(reader, size);
+            } else if (id === EBML_TAGS.Block || id === EBML_TAGS.SimpleBlock) {
+                const blockOk = await reader.ensureBytes(size);
+                if (blockOk) {
+                    const blockBuffer = reader.getUint8Array(size);
+                    const trackNumVint = readVint(blockBuffer, 0);
+                    if (trackNumVint) {
+                        const trackNumber = trackNumVint.value;
+
+                        if (currentTrack) {
+                            if (currentTrack.number !== null && currentTrack.type === 0x11) {
+                                tracks.set(currentTrack.number, currentTrack);
+                                cuesMap.set(currentTrack.number, []);
+                            }
+                            currentTrack = null;
+                        }
+
+                        const track = tracks.get(trackNumber);
+                        if (track && track.type === 0x11) {
+                            let offset = trackNumVint.length;
+                            if (offset + 2 <= size) {
+                                const relativeTimecode = (blockBuffer[offset] << 8) | blockBuffer[offset + 1];
+                                const signedRelativeTimecode = (relativeTimecode & 0x8000) ? (relativeTimecode - 0x10000) : relativeTimecode;
+                                offset += 2;
+                                offset += 1; // flags
+
+                                if (offset < size) {
+                                    const payload = blockBuffer.subarray(offset);
+                                    const textDecoder = new TextDecoder('utf-8');
+                                    let text = textDecoder.decode(payload);
+
+                                    if (track.codecId && (track.codecId.includes('ASS') || track.codecId.includes('SSA'))) {
+                                        const parts = text.split(',');
+                                        if (parts.length >= 9) {
+                                            text = parts.slice(8).join(',');
+                                        }
+                                    }
+
+                                    text = text.replace(/\{[^}]+\}/g, '').trim();
+                                    text = text.replace(/\\N/g, '<br>');
+
+                                    const startTime = (clusterTimecode + signedRelativeTimecode) * timecodeScale / 1000.0;
+
+                                    const cue = {
+                                        id: (cuesMap.get(trackNumber).length + 1),
+                                        start: startTime,
+                                        end: startTime + 4.0, // Default 4 seconds
+                                        text: text
+                                    };
+                                    cuesMap.get(trackNumber).push(cue);
+                                    lastCue = cue;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    reader.skip(size);
+                }
+            } else if (id === EBML_TAGS.BlockDuration) {
+                const duration = await readUint(reader, size);
+                if (lastCue) {
+                    lastCue.end = lastCue.start + (duration * timecodeScale / 1000.0);
+                }
+            } else if (id === EBML_TAGS.Cluster) {
+                if (currentTrack) {
+                    if (currentTrack.number !== null && currentTrack.type === 0x11) {
+                        tracks.set(currentTrack.number, currentTrack);
+                        cuesMap.set(currentTrack.number, []);
+                    }
+                    currentTrack = null;
+                }
+            } else {
+                reader.skip(size);
+            }
+        }
+
+        if (currentTrack && currentTrack.number !== null && currentTrack.type === 0x11) {
+            tracks.set(currentTrack.number, currentTrack);
+            cuesMap.set(currentTrack.number, []);
+        }
+
+        const resultTracks = [];
+        for (const [trackNumber, trackInfo] of tracks.entries()) {
+            const cues = cuesMap.get(trackNumber) || [];
+            cues.sort((a, b) => a.start - b.start);
+            resultTracks.push({
+                number: trackNumber,
+                name: trackInfo.name || `Altyazı Kanalı ${trackNumber} (${trackInfo.language || 'und'})`,
+                language: trackInfo.language,
+                codecId: trackInfo.codecId,
+                cues: cues
+            });
+        }
+
+        return resultTracks;
+    }
+
+    /* ──────────────────────────────────────────────
      *  Public API
      * ────────────────────────────────────────────── */
 
@@ -333,5 +654,6 @@
         findActiveCue:   findActiveCue,
         applyStyle:      applyStyle,
         getDefaultStyle: getDefaultStyle,
+        parseMKV:        parseMKV,
     };
 })();
