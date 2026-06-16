@@ -131,10 +131,10 @@
      * @param {string} targetLang - Target language name
      * @param {string} apiKey - Gemini API key
      * @param {string} model - Gemini model name
-     * @param {boolean} [thinking=false] - Enable thinking mode with budget
+     * @param {number} [thinkingBudget=0] - Thinking budget (0 = disabled, 1024/4096/8192/16384)
      * @returns {Promise<Array<{id, start, end, text}>>} Translated cues
      */
-    async function translateBatch(batch, targetLang, apiKey, model, thinking = false) {
+    async function translateBatch(batch, targetLang, apiKey, model, thinkingBudget = 0) {
         const endpoint = `${API_BASE}/${model}:generateContent?key=${apiKey}`;
         const prompt = buildPrompt(batch, targetLang);
 
@@ -150,7 +150,7 @@
             generationConfig: {
                 temperature: 0.3,
                 responseMimeType: "application/json",
-                ...(thinking ? { thinkingConfig: { thinkingBudget: 8192 } } : {})
+                ...(thinkingBudget > 0 ? { thinkingConfig: { thinkingBudget: thinkingBudget } } : {})
             }
         };
 
@@ -221,7 +221,7 @@
      * @param {string} apiKey - Gemini API key
      * @param {string} [model='gemini-3.5-flash'] - Gemini model name
      * @param {Function} [onProgress] - Callback `(completedCount, totalCount)`
-     * @param {boolean} [thinking=false] - Enable thinking mode with budget
+     * @param {number} [thinkingBudget=0] - Thinking budget (0 = disabled, 1024/4096/8192/16384)
      * @returns {Promise<Array<{id, start, end, text}>>} Translated cues
      * @throws {Error} If API key is missing, network fails, or API returns an error
      */
@@ -231,7 +231,7 @@
         apiKey,
         model = DEFAULT_MODEL,
         onProgress = null,
-        thinking = false
+        thinkingBudget = 0
     ) {
         // ── Validate API key ────────────────────────────────────────────
         if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
@@ -262,7 +262,7 @@
             // ── Retry loop: up to MAX_RETRIES with the active model ─────
             for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
                 try {
-                    translated = await translateBatch(batch, targetLang, apiKey, activeModel, thinking);
+                    translated = await translateBatch(batch, targetLang, apiKey, activeModel, thinkingBudget);
                     break; // success — exit retry loop
                 } catch (error) {
                     lastError = error;
@@ -284,7 +284,7 @@
                 await delay(RETRY_DELAY_MS);
 
                 try {
-                    translated = await translateBatch(batch, targetLang, apiKey, fallbackModel, thinking);
+                    translated = await translateBatch(batch, targetLang, apiKey, fallbackModel, thinkingBudget);
                     // Fallback succeeded — use it for remaining batches
                     activeModel = fallbackModel;
                     console.warn(

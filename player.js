@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const apiKeyToggle = document.getElementById('api-key-toggle');
     const modelSelect = document.getElementById('model-select');
     const apiStatus = document.getElementById('api-status');
-    const thinkingToggle = document.getElementById('thinking-toggle');
+    const thinkingSelect = document.getElementById('thinking-select');
 
     // Translation
     const translateSourceSelect = document.getElementById('translate-source-select');
@@ -127,9 +127,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const savedModel = localStorage.getItem('perfectus_model');
         if (savedModel) modelSelect.value = savedModel;
 
-        // Thinking mode
+        // Thinking level
         const savedThinking = localStorage.getItem('perfectus_thinking');
-        if (savedThinking) thinkingToggle.checked = savedThinking === 'true';
+        if (savedThinking) {
+            thinkingSelect.value = savedThinking;
+            syncCustomDropdown('thinking-select');
+        }
 
         // Subtitle Style
         const savedStyle = localStorage.getItem('perfectus_sub_style');
@@ -151,7 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveSettings() {
         localStorage.setItem('perfectus_api_key', apiKeyInput.value);
         localStorage.setItem('perfectus_model', modelSelect.value);
-        localStorage.setItem('perfectus_thinking', thinkingToggle.checked);
+        localStorage.setItem('perfectus_thinking', thinkingSelect.value);
         localStorage.setItem('perfectus_sub_style', JSON.stringify(subtitleStyle));
     }
 
@@ -199,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     modelSelect.addEventListener('change', () => saveSettings());
-    thinkingToggle.addEventListener('change', () => saveSettings());
+    thinkingSelect.addEventListener('change', () => saveSettings());
 
     function updateApiStatus() {
         const key = apiKeyInput.value.trim();
@@ -339,7 +342,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const targetLang = translateTargetLang.value;
         const apiKey = apiKeyInput.value.trim();
         const model = modelSelect.value;
-        const thinking = thinkingToggle.checked;
+        const thinkingBudget = parseInt(thinkingSelect.value) || 0;
 
         if (isNaN(sourceIndex) || !subtitleTracks[sourceIndex]) {
             showTranslateStatus('Lütfen bir kaynak altyazı seçin.', 'error');
@@ -368,7 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     translateProgressFill.style.width = pct + '%';
                     translateProgressText.textContent = `${completed} / ${total}`;
                 },
-                thinking
+                thinkingBudget
             );
 
             // Add as new track
